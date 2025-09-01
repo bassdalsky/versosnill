@@ -1,0 +1,49 @@
+import fs from 'fs';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const WEATHER_KEY = process.env.OPENWEATHER_API_KEY;
+const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY;
+const VOICE_ID = process.env.VOICE_ID || "b3jcIbyC3BSnaRu8avEk";
+
+async function getWeather() {
+  const url = `https://api.openweathermap.org/data/2.5/weather?q=Førde,no&units=metric&appid=${WEATHER_KEY}&lang=no`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return `${data.weather[0].description} ${Math.round(data.main.temp)}°C`;
+}
+
+async function generateTTS(text) {
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "xi-api-key": ELEVEN_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      text,
+      voice_settings: { stability: 0.4, similarity_boost: 0.8 }
+    })
+  });
+
+  if (!res.ok) throw new Error("TTS feila: " + res.statusText);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync("velkomst.mp3", buffer);
+}
+
+(async () => {
+  try {
+    const weather = await getWeather();
+    const now = new Date();
+    const time = now.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" });
+    const message = `Hei og velkomen! Været no er ${weather}, og klokka er ${time}.`;
+    console.log("Melding:", message);
+    await generateTTS(message);
+    console.log("✅ velkomst.mp3 er generert!");
+  } catch (err) {
+    console.error("Feil:", err);
+  }
+})();
